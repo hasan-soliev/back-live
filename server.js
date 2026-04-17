@@ -1,100 +1,59 @@
 const express = require('express');
 const cors = require('cors');
-const sqlite3 = require('sqlite3').verbose();
+const connectDB = require('./config/database');
+const Live = require('./models/Live');
 require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// Connect to MongoDB
+connectDB();
+
 // Middleware
 app.use(cors());
 app.use(express.json());
 
-// Database connection
-const db = new sqlite3.Database(process.env.DB_PATH || './database.db', (err) => {
-  if (err) {
-    console.error('Database connection failed:', err);
-    return;
-  }
-  console.log('Connected to SQLite database');
-});
-
-// Create table if not exists
-const createTableQuery = `
-  CREATE TABLE IF NOT EXISTS lives (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    img TEXT,
-    liveUrl TEXT,
-    title TEXT NOT NULL,
-    time TEXT,
-    date TEXT,
-    about TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  )
-`;
-
-db.run(createTableQuery, (err) => {
-  if (err) {
-    console.error('Error creating table:', err);
-  } else {
-    console.log('Table "lives" is ready');
-  }
-});
-
 // API Routes
 
 // Get all lives
-app.get('/api/lives', (req, res) => {
-  const query = 'SELECT * FROM lives ORDER BY date DESC, time DESC';
-  db.all(query, [], (err, rows) => {
-    if (err) {
-      res.status(500).json({ error: err.message });
-      return;
-    }
-    res.json(rows);
-  });
+app.get('/api/lives', async (req, res) => {
+  try {
+    const lives = await Live.find({}).sort({ date: -1, time: -1 });
+    res.json(lives);
+  } catch (error) {
+    console.error('Error fetching lives:', error);
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // Get single live by ID
-app.get('/api/lives/:id', (req, res) => {
-  const { id } = req.params;
-  const query = 'SELECT * FROM lives WHERE id = ?';
-  
-  db.get(query, [id], (err, row) => {
-    if (err) {
-      res.status(500).json({ error: err.message });
-      return;
+app.get('/api/lives/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const live = await Live.findById(id);
+    
+    if (!live) {
+      return res.status(404).json({ error: 'Live not found' });
     }
-    if (!row) {
-      res.status(404).json({ error: 'Live not found' });
-      return;
-    }
-    res.json(row);
-  });
+    
+    res.json(live);
+  } catch (error) {
+    console.error('Error fetching live:', error);
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // Create new live
-app.post('/api/lives', (req, res) => {
-  const { img, liveUrl, title, time, date, about } = req.body;
-  
-  if (!title) {
-    res.status(400).json({ error: 'Title is required' });
-    return;
-  }
-  
-  const query = `
-    INSERT INTO lives (img, liveUrl, title, time, date, about)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `;
-  
-  db.run(query, [img, liveUrl, title, time, date, about], function(err) {
-    if (err) {
-      res.status(500).json({ error: err.message });
-      return;
+app.post('/api/lives', async (req, res) => {
+  try {
+    const { img, liveUrl, title, time, date, about } = req.body;
+    
+    if (!title) {
+      return res.status(400).json({ error: 'Title is required' });
     }
-    res.status(201).json({
-      id: this.lastID,
+    
+    const newLive = new Live({
       img,
       liveUrl,
       title,
@@ -102,49 +61,53 @@ app.post('/api/lives', (req, res) => {
       date,
       about
     });
-  });
+    
+    const savedLive = await newLive.save();
+    res.status(201).json(savedLive);
+  } catch (error) {
+    console.error('Error creating live:', error);
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // Update live
-app.put('/api/lives/:id', (req, res) => {
-  const { id } = req.params;
-  const { img, liveUrl, title, time, date, about } = req.body;
-  
-  const query = `
-    UPDATE lives 
-    SET img = ?, liveUrl = ?, title = ?, time = ?, date = ?, about = ?
-    WHERE id = ?
-  `;
-  
-  db.run(query, [img, liveUrl, title, time, date, about, id], function(err) {
-    if (err) {
-      res.status(500).json({ error: err.message });
-      return;
+app.put('/api/lives/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { img, liveUrl, title, time, date, about } = req.body;
+    
+    const updatedLive = await Live.findByIdAndUpdate(
+      id,
+      { img, liveUrl, title, time, date, about },
+      { new: true, runValidators: true }
+    );
+    
+    if (!updatedLive) {
+      return res.status(404).json({ error: 'Live not found' });
     }
-    if (this.changes === 0) {
-      res.status(404).json({ error: 'Live not found' });
-      return;
-    }
-    res.json({ message: 'Live updated successfully' });
-  });
+    
+    res.json(updatedLive);
+  } catch (error) {
+    console.error('Error updating live:', error);
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // Delete live
-app.delete('/api/lives/:id', (req, res) => {
-  const { id } = req.params;
-  const query = 'DELETE FROM lives WHERE id = ?';
-  
-  db.run(query, [id], function(err) {
-    if (err) {
-      res.status(500).json({ error: err.message });
-      return;
+app.delete('/api/lives/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const deletedLive = await Live.findByIdAndDelete(id);
+    
+    if (!deletedLive) {
+      return res.status(404).json({ error: 'Live not found' });
     }
-    if (this.changes === 0) {
-      res.status(404).json({ error: 'Live not found' });
-      return;
-    }
+    
     res.json({ message: 'Live deleted successfully' });
-  });
+  } catch (error) {
+    console.error('Error deleting live:', error);
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // Start server
