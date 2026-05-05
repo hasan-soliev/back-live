@@ -24,6 +24,11 @@ const liveSchema = new mongoose.Schema({
   about: {
     type: String,
     default: null
+  },
+  type: {
+    type: String,
+    enum: ['match', 'channel', 'event', 'review'],
+    default: 'match'
   }
 }, {
   timestamps: { 
