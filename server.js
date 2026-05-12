@@ -10,10 +10,10 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 // Firebase Admin
-const serviceAccount = require('./live-ae64d-firebase-adminsdk-fbsvc-f1e352f47f.json');
-admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount),
-});
+// const serviceAccount = require('./live-ae64d-firebase-adminsdk-fbsvc-f1e352f47f.json');
+// admin.initializeApp({
+//   credential: admin.credential.cert(serviceAccount),
+// });
 
 // Отправка FCM уведомления в тему 'live'
 async function sendMatchNotification(match, index) {
