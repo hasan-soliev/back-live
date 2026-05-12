@@ -29,6 +29,15 @@ const liveSchema = new mongoose.Schema({
     type: String,
     enum: ['match', 'channel', 'event', 'review'],
     default: 'match'
+  },
+  channelId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Live',
+    default: null
+  },
+  notificationSent: {
+    type: Boolean,
+    default: false
   }
 }, {
   timestamps: { 
